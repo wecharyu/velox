@@ -148,17 +148,14 @@ class ParquetTestBase : public testing::Test,
   // copy via this method and then apply their overrides.
   dwio::common::ReaderOptions makeDefaultReaderOptions() const;
 
-  // Returns RowReaderOptions with a ColumnSelector for the given schema.
+  // Returns RowReaderOptions with a ScanSpec for the given schema.
   dwio::common::RowReaderOptions makeRowReaderOpts(
       const RowTypePtr& rowType,
-      bool fileColumnNamesReadAsLowerCase = false) {
+      bool /*fileColumnNamesReadAsLowerCase*/ = false) {
     dwio::common::RowReaderOptions rowReaderOpts;
-    rowReaderOpts.select(
-        std::make_shared<facebook::velox::dwio::common::ColumnSelector>(
-            rowType,
-            rowType->names(),
-            nullptr,
-            fileColumnNamesReadAsLowerCase));
+    auto scanSpec = std::make_shared<velox::common::ScanSpec>("<root>");
+    scanSpec->addAllChildFields(*rowType);
+    rowReaderOpts.setScanSpec(scanSpec);
     return rowReaderOpts;
   }
 

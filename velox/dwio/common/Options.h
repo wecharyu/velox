@@ -34,7 +34,6 @@
 #include "velox/common/config/Config.h"
 #include "velox/common/io/Options.h"
 #include "velox/common/memory/Memory.h"
-#include "velox/dwio/common/ColumnSelector.h"
 #include "velox/dwio/common/ErrorTolerance.h"
 #include "velox/dwio/common/FlatMapHelper.h"
 #include "velox/dwio/common/FlushPolicy.h"
@@ -267,21 +266,6 @@ class RowReaderOptions {
         preloadStripe_(false),
         projectSelectedType_(false) {}
 
-  /// For files that have structs as the top-level object, select the fields
-  /// to read. The first field is 0, the second 1, and so on. By default,
-  /// all columns are read. This option clears any previous setting of
-  /// the selected columns.
-  /// @param include a list of fields to read
-  /// @return this
-  RowReaderOptions& select(const std::shared_ptr<ColumnSelector>& selector) {
-    selector_ = selector;
-    if (selector) {
-      VELOX_CHECK_NULL(requestedType_);
-      requestedType_ = selector->getSchema();
-    }
-    return *this;
-  }
-
   /// Sets the section of the file to process.
   /// @param offset the starting byte offset
   /// @param length the number of bytes to read
@@ -290,11 +274,6 @@ class RowReaderOptions {
     dataStart_ = offset;
     dataLength_ = length;
     return *this;
-  }
-
-  /// Gets the list of selected field or type ids to read.
-  const std::shared_ptr<ColumnSelector>& selector() const {
-    return selector_;
   }
 
   /// Gets the start of the range for the data being processed.
@@ -376,7 +355,6 @@ class RowReaderOptions {
   }
 
   void setRequestedType(RowTypePtr requestedType) {
-    VELOX_CHECK_NULL(selector_);
     requestedType_ = std::move(requestedType);
   }
 
@@ -626,7 +604,6 @@ class RowReaderOptions {
   bool returnFlatVector_ = false;
   size_t parallelUnitLoadCount_ = 0;
   ErrorTolerance errorTolerance_;
-  std::shared_ptr<ColumnSelector> selector_;
   RowTypePtr requestedType_;
   std::shared_ptr<velox::common::ScanSpec> scanSpec_{nullptr};
   std::shared_ptr<velox::common::MetadataFilter> metadataFilter_;

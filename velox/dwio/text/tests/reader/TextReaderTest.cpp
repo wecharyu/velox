@@ -509,9 +509,6 @@ TEST_F(TextReaderTest, projectComplexTypesWithCustomDelimiters) {
 
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(
-          type, std::vector<std::string>({"col_string", "col_map"})));
   auto rowReader = reader->createRowReader(rowOptions);
 
   VectorPtr result;
@@ -612,10 +609,6 @@ TEST_F(TextReaderTest, projectPrimitiveTypes) {
 
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(
-          type,
-          std::vector<std::string>({"col_tiny", "col_int", "col_double"})));
   auto rowReader = reader->createRowReader(rowOptions);
 
   VectorPtr result;
@@ -679,9 +672,6 @@ TEST_F(TextReaderTest, projectColumns) {
   spec->addField("col_float", 1);
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(
-          type, std::vector<std::string>({"col_float"})));
   auto rowReader = reader->createRowReader(rowOptions);
   VectorPtr result;
   ASSERT_EQ(rowReader->next(10, result), 10);
@@ -731,9 +721,6 @@ TEST_F(TextReaderTest, projectNone) {
   dwio::common::RowReaderOptions rowReaderOptions;
   // Project none of the columns.
   setScanSpec(*ROW({}, {}), rowReaderOptions);
-  rowReaderOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(ROW({}, {})));
-
   auto input =
       std::make_unique<dwio::common::BufferedInput>(readFile, poolRef());
   auto reader = factory->createReader(std::move(input), readerOptions);
@@ -768,9 +755,6 @@ TEST_F(TextReaderTest, compressedProjectNone) {
   dwio::common::RowReaderOptions rowReaderOptions;
   // Project none of the columns.
   setScanSpec(*ROW({}, {}), rowReaderOptions);
-  rowReaderOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(ROW({}, {})));
-
   auto input =
       std::make_unique<dwio::common::BufferedInput>(readFile, poolRef());
   auto reader = factory->createReader(std::move(input), readerOptions);
@@ -810,8 +794,6 @@ TEST_F(TextReaderTest, compressedFilter) {
               std::vector<std::string>({"BAR"}), false));
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(type, type->names()));
   auto rowReader = reader->createRowReader(rowOptions);
   VectorPtr result;
   ASSERT_EQ(rowReader->next(10, result), 10);
@@ -859,9 +841,6 @@ TEST_F(TextReaderTest, filter) {
 
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(type, type->names()));
-
   auto rowReader = reader->createRowReader(rowOptions);
   VectorPtr result;
 
@@ -909,8 +888,6 @@ TEST_F(TextReaderTest, shrinkBatch) {
   auto spec = std::make_shared<common::ScanSpec>("<root>");
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(ROW({}, {})));
   auto rowReader = reader->createRowReader(rowOptions);
   VectorPtr result;
 
@@ -944,8 +921,6 @@ TEST_F(TextReaderTest, compressedShrinkBatch) {
   auto spec = std::make_shared<common::ScanSpec>("<root>");
   dwio::common::RowReaderOptions rowOptions;
   rowOptions.setScanSpec(spec);
-  rowOptions.select(
-      std::make_shared<dwio::common::ColumnSelector>(ROW({}, {})));
   auto rowReader = reader->createRowReader(rowOptions);
   VectorPtr result;
   ASSERT_EQ(rowReader->next(6, result), 6);

@@ -153,11 +153,9 @@ TEST_P(E2EReaderTest, sharedDictionaryFlatmapReadAsStruct) {
   auto seed = folly::Random::secureRand32();
   LOG(INFO) << "seed: " << seed;
   std::mt19937 gen(seed);
-  auto cs = std::make_shared<ColumnSelector>(
-      std::dynamic_pointer_cast<const RowType>(type));
   std::unordered_map<uint32_t, std::unordered_set<std::string>>
       structEncodingProtoMap;
-  const auto schemaWithId = cs->getSchemaWithId();
+  const auto schemaWithId = dwio::common::TypeWithId::create(type);
   for (size_t i = 0; i < batchCount; ++i) {
     auto batch = BatchMaker::createBatch(type, size, *pool, gen);
     for (size_t col = 0, schemaSize = schemaWithId->size(); col < schemaSize;
@@ -191,7 +189,11 @@ TEST_P(E2EReaderTest, sharedDictionaryFlatmapReadAsStruct) {
   rowReaderOptions.setDecodingExecutor(GetParam().decodingExecutor());
   rowReaderOptions.setDecodingParallelismFactor(
       GetParam().decodingParallelismFactor());
-  rowReaderOptions.select(cs);
+  auto rowType = std::dynamic_pointer_cast<const RowType>(type);
+  rowReaderOptions.setRequestedType(rowType);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*rowType);
+  rowReaderOptions.setScanSpec(scanSpec);
 
   const bool asStruct = GetParam().isReadAsStruct();
   if (asStruct) {

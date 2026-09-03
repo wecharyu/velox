@@ -35,9 +35,7 @@ dwio::common::ReaderOptions makeReaderOptions(
 dwio::common::RowReaderOptions makeRowReaderOptsWithSelector(
     const RowTypePtr& rowType) {
   dwio::common::RowReaderOptions rowReaderOpts;
-  rowReaderOpts.select(
-      std::make_shared<dwio::common::ColumnSelector>(
-          rowType, rowType->names(), nullptr, false));
+  rowReaderOpts.setScanSpec(makeScanSpec(rowType));
   return rowReaderOpts;
 }
 

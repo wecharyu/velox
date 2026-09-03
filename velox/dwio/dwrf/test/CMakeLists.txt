@@ -406,17 +406,6 @@ target_link_libraries(
   ${TEST_LINK_LIBS}
 )
 
-add_executable(velox_dwio_dwrf_column_reader_test TestColumnReader.cpp)
-add_test(velox_dwio_dwrf_column_reader_test velox_dwio_dwrf_column_reader_test)
-
-target_link_libraries(
-  velox_dwio_dwrf_column_reader_test
-  velox_link_libs
-  Folly::folly
-  fmt::fmt
-  ${TEST_LINK_LIBS}
-)
-
 add_executable(velox_dwio_dwrf_reader_test ReaderTest.cpp)
 add_test(
   NAME velox_dwio_dwrf_reader_test

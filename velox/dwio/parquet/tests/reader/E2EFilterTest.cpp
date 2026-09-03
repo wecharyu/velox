@@ -982,8 +982,6 @@ TEST_F(E2EFilterTest, parquetMRVersionStringStatsRowGroupFiltering) {
                 k360, false, false, k360, false, false, false));
 
     RowReaderOptions rowReaderOpts;
-    rowReaderOpts.select(
-        std::make_shared<ColumnSelector>(rowType, rowType->names()));
     rowReaderOpts.setScanSpec(scanSpec);
     auto rowReader = reader->createRowReader(rowReaderOpts);
 

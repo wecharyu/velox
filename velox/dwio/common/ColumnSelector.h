@@ -289,21 +289,11 @@ class ColumnSelector {
       const std::vector<std::string>& keys,
       const std::vector<std::string>& values);
 
-  /// Creates a file selector based on a logic selector and disk schema.
-  static ColumnSelector apply(
-      const std::shared_ptr<ColumnSelector>& origin,
-      const std::shared_ptr<const velox::RowType>& fileSchema);
-
   static std::shared_ptr<ColumnSelector> fromScanSpec(
       const velox::common::ScanSpec& spec,
       const RowTypePtr& rowType);
 
  private:
-  // visit the tree with disk type
-  static void copy(
-      FilterTypePtr&,
-      const std::shared_ptr<const velox::Type>& diskType,
-      const FilterTypePtr& origin);
 
   // build filter tree through schema
   void buildNodes(
@@ -323,9 +313,6 @@ class ColumnSelector {
 
   // generate column filter
   void setReadAll();
-
-  // get node ID list to be read
-  std::vector<uint64_t> getNodeFilter() const;
 
   void checkSelectColNonDuplicate(bool fileColumnNamesReadAsLowerCase) {
     if (!fileColumnNamesReadAsLowerCase) {

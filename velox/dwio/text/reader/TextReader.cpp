@@ -145,8 +145,7 @@ TextRowReader::TextRowReader(
       scanSpec_{opts.scanSpec()},
       selectedSchema_{nullptr},
       options_{opts},
-      columnSelector_{
-          ColumnSelector::apply(opts.selector(), contents_->schema)},
+      columnSelector_{contents_->schema},
       currentRow_{0},
       pos_{opts.offset()},
       atEOL_{false},

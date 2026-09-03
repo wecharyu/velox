@@ -105,8 +105,6 @@ void verifyStats(
   StripeStreamsImpl streams{
       std::make_shared<StripeReadState>(
           rowReader.readerBaseShared(), std::move(stripeMetadata)),
-      &rowReader.getColumnSelector(),
-      nullptr,
       rowReader.rowReaderOptions(),
       stripeInfo.offset(),
       static_cast<int64_t>(stripeInfo.numberOfRows()),

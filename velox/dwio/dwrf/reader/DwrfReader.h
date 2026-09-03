@@ -24,20 +24,10 @@
 
 namespace facebook::velox::dwrf {
 
-class ColumnReader;
 class DwrfUnit;
 
 class DwrfOptions : public dwio::common::FormatSpecificOptions {
  public:
-  void setColumnReaderFactory(
-      std::shared_ptr<ColumnReaderFactory> columnReaderFactory) {
-    columnReaderFactory_ = std::move(columnReaderFactory);
-  }
-
-  const std::shared_ptr<ColumnReaderFactory>& columnReaderFactory() const {
-    return columnReaderFactory_;
-  }
-
   void setMaxCoalesceDistance(int32_t distance) {
     maxCoalesceDistance_ = distance;
   }
@@ -47,7 +37,6 @@ class DwrfOptions : public dwio::common::FormatSpecificOptions {
   }
 
  private:
-  std::shared_ptr<ColumnReaderFactory> columnReaderFactory_;
   int32_t maxCoalesceDistance_{
       dwio::common::ReaderOptions::kDefaultCoalesceDistance};
 };
@@ -67,25 +56,15 @@ class DwrfRowReader : public StrideIndexProvider,
 
   ~DwrfRowReader() override = default;
 
-  // Select the columns from the options object
-  const dwio::common::ColumnSelector& getColumnSelector() const {
-    return *columnSelector_;
-  }
-
-  const std::shared_ptr<dwio::common::ColumnSelector>& getColumnSelectorPtr()
-      const {
-    return columnSelector_;
-  }
-
   const dwio::common::RowReaderOptions& rowReaderOptions() const {
     return options_;
   }
 
   std::shared_ptr<const dwio::common::TypeWithId> selectedType() const {
     if (!selectedSchema_) {
-      selectedSchema_ = columnSelector_->buildSelected();
+      selectedSchema_ =
+          dwio::common::TypeWithId::create(options_.requestedType());
     }
-
     return selectedSchema_;
   }
 
@@ -102,9 +81,6 @@ class DwrfRowReader : public StrideIndexProvider,
   uint64_t getStrideIndex() const override {
     return strideIndex_;
   }
-
-  /// Estimates the space used by the reader
-  size_t estimatedReaderMemory() const;
 
   /// Estimates the row size for projected columns
   std::optional<size_t> estimatedRowSize() const override;
@@ -150,9 +126,6 @@ class DwrfRowReader : public StrideIndexProvider,
   int64_t nextReadSize(uint64_t size) override;
 
   std::shared_ptr<const RowType> type() const {
-    if (columnSelector_) {
-      return columnSelector_->getSchema();
-    }
     return options_.requestedType();
   }
 
@@ -180,8 +153,6 @@ class DwrfRowReader : public StrideIndexProvider,
 
   uint64_t skip(uint64_t numValues);
 
-  std::unique_ptr<ColumnReader>& getColumnReader();
-
   std::unique_ptr<dwio::common::SelectiveColumnReader>&
   getSelectiveColumnReader();
 
@@ -189,9 +160,6 @@ class DwrfRowReader : public StrideIndexProvider,
 
   const dwio::common::RowReaderOptions options_;
   dwio::common::ColumnReaderOptions columnReaderOptions_;
-
-  // column selector
-  const std::shared_ptr<dwio::common::ColumnSelector> columnSelector_;
   const std::function<void(std::chrono::high_resolution_clock::duration)>
       decodingTimeCallback_;
 
@@ -209,8 +177,6 @@ class DwrfRowReader : public StrideIndexProvider,
   uint64_t currentRowInStripe_;
   uint64_t rowsInCurrentStripe_;
   uint64_t strideIndex_;
-
-  std::shared_ptr<BitSet> projectedNodes_;
 
   const uint64_t* stridesToSkip_;
   int stridesToSkipSize_;

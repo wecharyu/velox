@@ -75,6 +75,22 @@ class MockStreamInformation : public StreamInformation {
   const DwrfStreamIdentifier& streamIdentifier_;
 };
 
+/// Helper to build a SelectiveColumnReader using SelectiveDwrfReader::build.
+/// Replaces the old ColumnReader::build() API.
+std::unique_ptr<dwio::common::SelectiveColumnReader> buildReader(
+    const std::shared_ptr<const dwio::common::TypeWithId>& reqType,
+    StripeStreams& streams,
+    const StreamLabels& labels,
+    FlatMapContext flatMapContext = {}) {
+  dwio::common::ColumnReaderOptions colReaderOptions;
+  dwio::common::SplitStats splitStats;
+  DwrfParams params(streams, labels, splitStats, flatMapContext);
+  auto scanSpec = std::make_shared<velox::common::ScanSpec>("<root>");
+  auto childSpec = scanSpec->addChild(reqType->getNode().name);
+  return SelectiveDwrfReader::build(
+      colReaderOptions, reqType->type(), reqType, params, *childSpec);
+}
+
 class TestStripeStreams : public StripeStreamsBase {
  public:
   TestStripeStreams(
@@ -87,8 +103,7 @@ class TestStripeStreams : public StripeStreamsBase {
           structReaderContext = {})
       : StripeStreamsBase{pool},
         context_{context},
-        footer_{footer},
-        selector_{rowType} {
+        footer_{footer} {
     options_.setReturnFlatVector(returnFlatVector);
     if (!structReaderContext.empty()) {
       options_.setFlatmapNodeIdsAsStruct(structReaderContext);
@@ -155,10 +170,6 @@ class TestStripeStreams : public StripeStreamsBase {
     return count;
   }
 
-  const ColumnSelector& getColumnSelector() const override {
-    return selector_;
-  }
-
   const tz::TimeZone* sessionTimezone() const override {
     return context_.sessionTimezone();
   }
@@ -197,7 +208,6 @@ class TestStripeStreams : public StripeStreamsBase {
  private:
   WriterContext& context_;
   const proto::StripeFooter& footer_;
-  ColumnSelector selector_;
   RowReaderOptions options_;
   mutable std::vector<std::unique_ptr<DataBuffer<char>>> buffers_;
   StrictMock<MockStrideIndexProvider> mockStrideIndexProvider_;
@@ -370,13 +380,10 @@ void testDataTypeWriter(
 
     memory::AllocationPool allocPool(pool.get());
     StreamLabels labels(allocPool);
-    auto reader = ColumnReader::build(
-        reqType,
+    auto reader = buildReader(
         reqType,
         streams,
         labels,
-        nullptr,
-        0,
         FlatMapContext{
             .sequence = sequence,
             .inMapDecoder = nullptr,
@@ -1085,8 +1092,8 @@ void testMapWriter(
       auto pool = memory::memoryManager()->addLeafPool();
       memory::AllocationPool allocPool(pool.get());
       StreamLabels labels(allocPool);
-      const auto reader = ColumnReader::build(
-          dataTypeWithId, dataTypeWithId, streams, labels, nullptr, 0);
+      const auto reader = buildReader(
+          dataTypeWithId, streams, labels);
       VectorPtr out;
 
       // Read map/row
@@ -1224,8 +1231,8 @@ void testMapWriterRow(
       auto pool = memory::memoryManager()->addLeafPool();
       memory::AllocationPool allocPool(pool.get());
       StreamLabels labels(allocPool);
-      const auto reader = ColumnReader::build(
-          dataTypeWithId, dataTypeWithId, streams, labels, nullptr, 0);
+      const auto reader = buildReader(
+          dataTypeWithId, streams, labels);
       VectorPtr out;
 
       // Read map/row
@@ -1552,7 +1559,7 @@ void testFlatMapWriter(
   memory::AllocationPool allocPool(pool);
   StreamLabels labels(allocPool);
   auto reader =
-      ColumnReader::build(reqType, reqType, streams, labels, nullptr, 0);
+      buildReader(reqType, streams, labels);
   VectorPtr out;
 
   for (const auto& batch : batches) {
@@ -2554,7 +2561,7 @@ struct IntegerColumnWriterTypedTestCase {
       memory::AllocationPool allocPool(pool.get());
       StreamLabels labels(allocPool);
       auto columnReader =
-          ColumnReader::build(reqType, reqType, streams, labels, nullptr, 0);
+          buildReader(reqType, streams, labels);
 
       for (size_t j = 0; j != repetitionCount; ++j) {
         // TODO Make reuse work
@@ -3792,7 +3799,7 @@ struct StringColumnWriterTestCase {
       memory::AllocationPool allocPool(pool.get());
       StreamLabels labels(allocPool);
       auto columnReader =
-          ColumnReader::build(reqType, reqType, streams, labels, nullptr, 0);
+          buildReader(reqType, streams, labels);
 
       for (size_t j = 0; j != repetitionCount; ++j) {
         if (!writeDirect) {
@@ -4868,7 +4875,7 @@ struct DictColumnWriterTestCase {
     memory::AllocationPool allocPool(pool_.get());
     StreamLabels labels(allocPool);
     auto reader =
-        ColumnReader::build(reqType, reqType, streams, labels, nullptr, 0);
+        buildReader(reqType, streams, labels);
     VectorPtr out;
     reader->next(batch->size(), out);
     compareResults(batch, out);

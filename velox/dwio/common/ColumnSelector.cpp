@@ -121,69 +121,6 @@ FilterTypePtr ColumnSelector::buildNode(
   return current;
 }
 
-// this copy method only update inContent and data type
-// based on disk data type
-void ColumnSelector::copy(
-    common::FilterTypePtr& node,
-    const std::shared_ptr<const Type>& diskType,
-    const common::FilterTypePtr& origin) {
-  auto originIsNull = (origin == nullptr);
-  if (!originIsNull) {
-    node->setInContent(origin->isInContent());
-    node->setSequenceFilter(origin->getSequenceFilter());
-  }
-
-  // we're not interested in non-read nodes and nodes that not in content
-  if (node->shouldRead() && node->isInContent()) {
-    // not found in disk type
-    if (diskType == nullptr) {
-      node->setInContent(false);
-      return;
-    }
-
-    // ensure disk type can be converted to request type
-    typeutils::checkTypeCompatibility(*diskType, *node->getRequestType());
-
-    // update data type during the visit as well as other data fields
-    node->setDataType(diskType);
-    if (!originIsNull) {
-      const common::FilterNode& f = origin->getNode();
-      auto& fn = const_cast<common::FilterNode&>(node->getNode());
-      fn.expression = f.expression;
-      fn.partitionKey = f.partitionKey;
-    }
-
-    // visit all children
-    for (size_t i = 0; i < node->size(); ++i) {
-      copy(
-          const_cast<common::FilterTypePtr&>(node->childAt(i)),
-          i < diskType->size() ? diskType->childAt(i) : nullptr,
-          originIsNull ? nullptr : origin->childAt(i));
-    }
-  }
-}
-
-ColumnSelector ColumnSelector::apply(
-    const std::shared_ptr<ColumnSelector>& origin,
-    const std::shared_ptr<const RowType>& fileSchema) {
-  // current instance maybe null.
-  if (origin == nullptr) {
-    return ColumnSelector(fileSchema);
-  }
-
-  // if selector has no schema, we just build a new tree with file schema
-  // selector.getProjection will carry all logic information including nodes
-  const bool onlyFilter = !origin->hasSchema();
-  ColumnSelector cs(
-      onlyFilter ? fileSchema : origin->getSchema(),
-      origin->getNodeFilter(),
-      true);
-
-  // visit file schema and decide in content call
-  copy(cs.nodes_[0], fileSchema, onlyFilter ? nullptr : origin->nodes_[0]);
-  return cs;
-}
-
 /**
  * Mark the node and all its children recursively to be read.
  *
@@ -272,18 +209,6 @@ void ColumnSelector::setConstants(
     // assign the value to the constant's expression
     const_cast<FilterNode&>(node->getNode()).expression = value;
   }
-}
-
-// note that - this list includes root NODE - should we?
-std::vector<uint64_t> ColumnSelector::getNodeFilter() const {
-  std::vector<uint64_t> nodeIds;
-  nodeIds.reserve(nodes_.size());
-  for (const auto& node : nodes_) {
-    if (node->shouldRead()) {
-      nodeIds.emplace_back(node->getId());
-    }
-  }
-  return nodeIds;
 }
 
 const FilterTypePtr& ColumnSelector::process(const std::string& column, bool) {

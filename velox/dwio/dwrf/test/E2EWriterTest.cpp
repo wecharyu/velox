@@ -198,8 +198,6 @@ class E2EWriterTest : public testing::Test {
         dwrf::StripeStreamsImpl stripeStreams(
             std::make_shared<dwrf::StripeReadState>(
                 dwrfRowReader->readerBaseShared(), std::move(stripeMetadata)),
-            &dwrfRowReader->getColumnSelector(),
-            nullptr,
             rowReaderOpts,
             currentStripeInfo.offset(),
             currentStripeInfo.numberOfRows(),
@@ -1495,8 +1493,9 @@ TEST_F(E2EEncryptionTest, readWithoutKey) {
   // reading unencrypted column should not fail
   {
     RowReaderOptions rowReaderOpts;
-    rowReaderOpts.select(
-        std::make_shared<ColumnSelector>(type, std::vector<uint64_t>{0}));
+    auto scanSpec = std::make_shared<velox::common::ScanSpec>("<root>");
+    scanSpec->addChild("a");
+    rowReaderOpts.setScanSpec(scanSpec);
     auto rowReader = reader->createRowReader(rowReaderOpts);
     VectorPtr batch;
     ASSERT_TRUE(rowReader->next(1, batch));
@@ -1505,8 +1504,9 @@ TEST_F(E2EEncryptionTest, readWithoutKey) {
   // fail when reading encrypted column
   {
     RowReaderOptions rowReaderOpts;
-    rowReaderOpts.select(
-        std::make_shared<ColumnSelector>(type, std::vector<uint64_t>{1}));
+    auto scanSpec = std::make_shared<velox::common::ScanSpec>("<root>");
+    scanSpec->addChild("b");
+    rowReaderOpts.setScanSpec(scanSpec);
     VELOX_ASSERT_THROW(reader->createRowReader(rowReaderOpts), "");
   }
 }

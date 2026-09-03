@@ -15,10 +15,8 @@
 velox_add_library(
   velox_dwio_dwrf_reader
   BinaryStreamReader.cpp
-  ColumnReader.cpp
   DwrfData.cpp
   DwrfReader.cpp
-  FlatMapColumnReader.cpp
   ReaderBase.cpp
   SelectiveDwrfReader.cpp
   SelectiveFlatMapColumnReader.cpp
@@ -36,12 +34,9 @@ velox_add_library(
   StripeStream.cpp
   HEADERS
   BinaryStreamReader.h
-  ColumnReader.h
-  ConstantColumnReader.h
   DwrfData.h
   DwrfReader.h
   EncodingContext.h
-  FlatMapColumnReader.h
   ReaderBase.h
   SelectiveByteRleColumnReader.h
   SelectiveDecimalColumnReader.h

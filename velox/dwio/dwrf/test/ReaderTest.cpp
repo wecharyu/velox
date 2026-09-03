@@ -306,7 +306,11 @@ void verifyFlatMapReading(
 
   RowReaderOptions rowReaderOpts;
   rowReaderOpts.setReturnFlatVector(returnFlatVector);
-  rowReaderOpts.select(std::make_shared<ColumnSelector>(getFlatmapSchema()));
+  auto flatmapSchema = getFlatmapSchema();
+  rowReaderOpts.setRequestedType(flatmapSchema);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*flatmapSchema);
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(file, readerOpts.memoryPool()), readerOpts);
   auto rowReaderOwner = reader->createRowReader(rowReaderOpts);
@@ -432,7 +436,10 @@ TEST_P(TestFlatMapReader, testReadFlatMapEmptyMap) {
          id:int,\
      mapCol:map<int,int>,\
      ds:string>"));
-  rowReaderOpts.select(std::make_shared<ColumnSelector>(emptyFileType));
+  rowReaderOpts.setRequestedType(emptyFileType);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*emptyFileType);
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(emptyFile, readerOpts.memoryPool()), readerOpts);
   auto rowReaderOwner = reader->createRowReader(rowReaderOpts);
@@ -622,10 +629,13 @@ TEST_F(TestReader, testReadFlatMapWithKeyFilters) {
   readerOpts.setMetadataIoStats(metadataIoStats_);
   RowReaderOptions rowReaderOpts;
   // set map key filter for map1 we only need key=1, and map2 only key-1
-  auto cs = std::make_shared<ColumnSelector>(
-      getFlatmapSchema(),
-      std::vector<std::string>{"map1#[1]", "map2#[\"key-1\"]"});
-  rowReaderOpts.select(cs);
+  auto flatmapSchema = getFlatmapSchema();
+  rowReaderOpts.setRequestedType(flatmapSchema);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*flatmapSchema);
+  scanSpec->childByName("map1")->setFlatMapFeatureSelection({"1"});
+  scanSpec->childByName("map2")->setFlatMapFeatureSelection({"key-1"});
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(getFMSmallFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -676,9 +686,13 @@ TEST_F(TestReader, testReadFlatMapWithKeyRejectList) {
   readerOpts.setDataIoStats(dataIoStats_);
   readerOpts.setMetadataIoStats(metadataIoStats_);
   RowReaderOptions rowReaderOpts;
-  auto cs = std::make_shared<ColumnSelector>(
-      getFlatmapSchema(), std::vector<std::string>{"map1#[\"!2\",\"!3\"]"});
-  rowReaderOpts.select(cs);
+  auto flatmapSchema = getFlatmapSchema();
+  rowReaderOpts.setRequestedType(flatmapSchema);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*flatmapSchema);
+  // Reject list [\"!2\",\"!3\"] equivalent to include only key 1
+  scanSpec->childByName("map1")->setFlatMapFeatureSelection({"1"});
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(getFMSmallFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -714,9 +728,12 @@ TEST_F(TestReader, testReadFlatMapWithKeyRejectList) {
 TEST_F(TestReader, testStatsCallbackFiredWithFiltering) {
   RowReaderOptions rowReaderOpts;
   // Apply feature projection
-  auto cs = std::make_shared<ColumnSelector>(
-      getFlatmapSchema(), std::vector<std::string>{"map2#[\"key-1\"]"});
-  rowReaderOpts.select(cs);
+  auto flatmapSchema = getFlatmapSchema();
+  rowReaderOpts.setRequestedType(flatmapSchema);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*flatmapSchema);
+  scanSpec->childByName("map2")->setFlatMapFeatureSelection({"key-1"});
+  rowReaderOpts.setScanSpec(scanSpec);
 
   uint64_t totalKeyStreamsAggregate = 0;
   uint64_t selectedKeyStreamsAggregate = 0;
@@ -768,6 +785,9 @@ TEST_F(TestReader, testBlockedIoCallbackFiredBlocking) {
         }
       });
   rowReaderOpts.setEagerFirstStripeLoad(false);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*requestedType);
+  rowReaderOpts.setScanSpec(scanSpec);
 
   dwio::common::ReaderOptions readerOpts{pool()};
   readerOpts.setDataIoStats(dataIoStats_);
@@ -814,6 +834,9 @@ TEST_F(TestReader, DISABLED_testBlockedIoCallbackFiredNonBlocking) {
         }
       });
   rowReaderOpts.setEagerFirstStripeLoad(false);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*requestedType);
+  rowReaderOpts.setScanSpec(scanSpec);
 
   dwio::common::ReaderOptions readerOpts{pool()};
   readerOpts.setDataIoStats(dataIoStats_);
@@ -910,10 +933,12 @@ TEST_F(TestReader, testEstimatedSize) {
     auto reader = DwrfReader::create(
         createFileBufferedInput(getFMSmallFile(), readerOpts.memoryPool()),
         readerOpts);
-    auto cs = std::make_shared<ColumnSelector>(
-        getFlatmapSchema(), std::vector<std::string>{"map2"});
+    auto flatmapSchema = getFlatmapSchema();
     RowReaderOptions rowReaderOpts;
-    rowReaderOpts.select(cs);
+    rowReaderOpts.setRequestedType(flatmapSchema);
+    auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+    scanSpec->addAllChildFields(*flatmapSchema);
+    rowReaderOpts.setScanSpec(scanSpec);
 
     auto rowReader = reader->createRowReader(rowReaderOpts);
     ASSERT_EQ(rowReader->estimatedRowSize(), 67);
@@ -923,10 +948,11 @@ TEST_F(TestReader, testEstimatedSize) {
     auto reader = DwrfReader::create(
         createFileBufferedInput(getFMSmallFile(), readerOpts.memoryPool()),
         readerOpts);
-    auto cs = std::make_shared<ColumnSelector>(
-        getFlatmapSchema(), std::vector<std::string>{"id"});
     RowReaderOptions rowReaderOpts;
-    rowReaderOpts.select(cs);
+    rowReaderOpts.setRequestedType(getFlatmapSchema());
+    auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+    scanSpec->addAllChildFields(*getFlatmapSchema());
+    rowReaderOpts.setScanSpec(scanSpec);
     auto rowReader = reader->createRowReader(rowReaderOpts);
     ASSERT_EQ(rowReader->estimatedRowSize(), 4);
   }
@@ -993,9 +1019,11 @@ TEST_F(TestReader, testSubfieldEstimatedSize) {
 TEST_F(TestReader, testStatsCallbackFiredWithoutFiltering) {
   RowReaderOptions rowReaderOpts;
   // Don't apply feature projection here
-  auto cs = std::make_shared<ColumnSelector>(
-      getFlatmapSchema(), std::vector<std::string>{"map2"});
-  rowReaderOpts.select(cs);
+  auto flatmapSchema = getFlatmapSchema();
+  rowReaderOpts.setRequestedType(flatmapSchema);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*flatmapSchema);
+  rowReaderOpts.setScanSpec(scanSpec);
 
   uint64_t totalKeyStreamsAggregate = 0;
   uint64_t selectedKeyStreamsAggregate = 0;
@@ -1042,10 +1070,9 @@ std::vector<std::string> stringify(const std::vector<int32_t>& values) {
 }
 
 std::unordered_map<uint32_t, std::vector<std::string>> makeStructEncodingOption(
-    const ColumnSelector& cs,
+    const std::shared_ptr<const dwio::common::TypeWithId>& schema,
     const std::string& columnName,
     const std::vector<int32_t>& keys) {
-  const auto schema = cs.getSchemaWithId();
   const auto names = schema->type()->as<TypeKind::ROW>().names();
 
   for (uint32_t i = 0; i < names.size(); ++i) {
@@ -1110,23 +1137,29 @@ void verifyFlatmapStructEncoding(
       : std::vector<std::string>{
             projectedColumn + "#[" + folly::join(", ", keysToSelect) + "]"};
 
-  auto cs = std::make_shared<ColumnSelector>(
-      std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse("struct<\
+  auto schema = std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse("struct<\
          id:int,\
      map1:map<int, array<float>>,\
      map2:map<string, map<smallint,bigint>>,\
      map3:map<int,int>,\
      map4:map<int,struct<field1:int,field2:float,field3:string>>,\
-     memo:string>")),
-      columnSelections);
+     memo:string>"));
+  auto schemaWithId = dwio::common::TypeWithId::create(schema);
 
   RowReaderOptions rowReaderOpts;
-  rowReaderOpts.select(cs);
+  rowReaderOpts.setRequestedType(schema);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*schema);
+  if (!keysToSelect.empty()) {
+    scanSpec->childByName(projectedColumn)
+        ->setFlatMapFeatureSelection(keysToSelect);
+  }
+  rowReaderOpts.setScanSpec(scanSpec);
 
   auto mapEncodingReader = reader->createRowReader(rowReaderOpts);
 
   rowReaderOpts.setFlatmapNodeIdsAsStruct(
-      makeStructEncodingOption(*cs, "map1", keysAsFields));
+      makeStructEncodingOption(schemaWithId, "map1", keysAsFields));
   auto structEncodingReader = reader->createRowReader(rowReaderOpts);
 
   const auto compare = [&]() {
@@ -1220,9 +1253,13 @@ TEST_F(TestReader, testMismatchSchemaMoreFields) {
   std::shared_ptr<const RowType> requestedType =
       std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
           "struct<a:int,b:struct<a:int,b:float,c:string>,c:float,d:string>"));
-  rowReaderOpts.select(
-      std::make_shared<ColumnSelector>(
-          requestedType, std::vector<uint64_t>{1, 2, 3}));
+  rowReaderOpts.setRequestedType(requestedType);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  // Select columns by index: {1, 2, 3} -> b, c, d, skip a
+  scanSpec->addFieldRecursively("b", *requestedType->childAt(1), 0);
+  scanSpec->addField("c", 1);
+  scanSpec->addField("d", 2);
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(getStructFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -1268,9 +1305,10 @@ TEST_F(TestReader, testMismatchSchemaFewerFields) {
   std::shared_ptr<const RowType> requestedType =
       std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
           "struct<a:int,b:struct<a:int,b:float,c:string>>"));
-  rowReaderOpts.select(
-      std::make_shared<ColumnSelector>(
-          requestedType, std::vector<uint64_t>{1}));
+  rowReaderOpts.setRequestedType(requestedType);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addFieldRecursively("b", *requestedType->childAt(1), 0);
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(getStructFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -1313,9 +1351,6 @@ TEST_F(TestReader, testMismatchSchemaNestedMoreFields) {
       std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
           "struct<a:int,b:struct<a:int,b:float,c:string,d:binary>,c:float>"));
   LOG(INFO) << requestedType->toString();
-  rowReaderOpts.select(
-      std::make_shared<ColumnSelector>(
-          requestedType, std::vector<std::string>{"b.b", "b.c", "b.d", "c"}));
   auto reader = DwrfReader::create(
       createFileBufferedInput(getStructFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -1381,9 +1416,11 @@ TEST_F(TestReader, testMismatchSchemaNestedFewerFields) {
   std::shared_ptr<const RowType> requestedType =
       std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
           "struct<a:int,b:struct<a:int,b:float>,c:float>"));
-  rowReaderOpts.select(
-      std::make_shared<ColumnSelector>(
-          requestedType, std::vector<std::string>{"b.b", "c"}));
+  rowReaderOpts.setRequestedType(requestedType);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->getOrCreateChild("b");
+  scanSpec->getOrCreateChild("c");
+  rowReaderOpts.setScanSpec(scanSpec);
   auto reader = DwrfReader::create(
       createFileBufferedInput(getStructFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -1441,9 +1478,6 @@ TEST_F(TestReader, testMismatchSchemaIncompatibleNotSelected) {
   std::shared_ptr<const RowType> requestedType =
       std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
           "struct<a:float,b:struct<a:string,b:float>,c:int>"));
-  rowReaderOpts.select(
-      std::make_shared<ColumnSelector>(
-          requestedType, std::vector<std::string>{"b.b"}));
   auto reader = DwrfReader::create(
       createFileBufferedInput(getStructFile(), readerOpts.memoryPool()),
       readerOpts);
@@ -1699,8 +1733,10 @@ TEST_F(TestReader, testStripeSizeCallback) {
   std::shared_ptr<const RowType> requestedType = std::dynamic_pointer_cast<
       const RowType>(HiveTypeParser().parse(
       "struct<int_column:int,string_column:string,string_column_2:string,ds:string>"));
-  rowReaderOpts.select(std::make_shared<ColumnSelector>(requestedType));
   rowReaderOpts.setEagerFirstStripeLoad(false);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*requestedType);
+  rowReaderOpts.setScanSpec(scanSpec);
   uint16_t stripeCount = 0;
   int numCalls = 0;
   rowReaderOpts.setStripeCountCallback([&](uint16_t count) {
@@ -1729,8 +1765,10 @@ TEST_F(TestReader, testStripeSizeCallbackLimitsOneStripe) {
   std::shared_ptr<const RowType> requestedType = std::dynamic_pointer_cast<
       const RowType>(HiveTypeParser().parse(
       "struct<int_column:int,string_column:string,string_column_2:string,ds:string>"));
-  rowReaderOpts.select(std::make_shared<ColumnSelector>(requestedType));
   rowReaderOpts.setEagerFirstStripeLoad(false);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*requestedType);
+  rowReaderOpts.setScanSpec(scanSpec);
   rowReaderOpts.range(600, 600);
   uint16_t stripeCount = 0;
   int numCalls = 0;
@@ -1760,8 +1798,10 @@ TEST_F(TestReader, testStripeSizeCallbackLimitsTwoStripe) {
   std::shared_ptr<const RowType> requestedType = std::dynamic_pointer_cast<
       const RowType>(HiveTypeParser().parse(
       "struct<int_column:int,string_column:string,string_column_2:string,ds:string>"));
-  rowReaderOpts.select(std::make_shared<ColumnSelector>(requestedType));
   rowReaderOpts.setEagerFirstStripeLoad(false);
+  auto scanSpec = std::make_shared<common::ScanSpec>("<root>");
+  scanSpec->addAllChildFields(*requestedType);
+  rowReaderOpts.setScanSpec(scanSpec);
   rowReaderOpts.range(0, 600);
   uint16_t stripeCount = 0;
   int numCalls = 0;
@@ -1780,230 +1820,9 @@ TEST_F(TestReader, testStripeSizeCallbackLimitsTwoStripe) {
   EXPECT_EQ(numCalls, 1);
 }
 
-TEST_P(TestReaderP, testUpcastBoolean) {
-  MockStripeStreams streams;
 
-  // set getEncoding
-  proto::ColumnEncoding directEncoding;
-  directEncoding.set_kind(proto::ColumnEncoding_Kind_DIRECT);
-  EXPECT_CALL(streams, getEncodingProxy(_))
-      .WillRepeatedly(Return(&directEncoding));
 
-  // set getStream
-  EXPECT_CALL(streams, getStreamProxy(_, proto::Stream_Kind_PRESENT, false))
-      .WillRepeatedly(Return(nullptr));
 
-  // [0, 1] * 52 = 104 booleans/bits or 13 bytes
-  // 0,1 encoded in a byte is 0101 0101 ->0x55
-  // ByteRLE - Repeat->10 (13-MINIMUM_REPEAT), Value - 0x55
-  auto data = folly::make_array<char>(10, 0x55);
-  EXPECT_CALL(streams, getStreamProxy(1, proto::Stream_Kind_DATA, true))
-      .WillRepeatedly(
-          Return(new SeekableArrayInputStream(data.data(), data.size())));
-
-  // create the row type
-  std::shared_ptr<const RowType> rowType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:boolean>"));
-  std::shared_ptr<const RowType> reqType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:int>"));
-  ColumnSelector cs(reqType, rowType);
-  EXPECT_CALL(streams, getColumnSelectorProxy()).WillRepeatedly(Return(&cs));
-  memory::AllocationPool allocPool(pool());
-  StreamLabels labels(allocPool);
-  std::unique_ptr<ColumnReader> reader = ColumnReader::build(
-      TypeWithId::create(reqType),
-      TypeWithId::create(rowType),
-      streams,
-      labels,
-      executor(),
-      getDecodingParallelismFactor());
-
-  VectorPtr batch;
-  reader->next(104, batch);
-
-  auto lv = std::dynamic_pointer_cast<FlatVector<int32_t>>(
-      std::dynamic_pointer_cast<RowVector>(batch)->childAt(0));
-
-  for (size_t i = 0; i < batch->size(); ++i) {
-    EXPECT_EQ(lv->valueAt(i), i % 2);
-  }
-}
-
-TEST_P(TestReaderP, testUpcastIntDirect) {
-  MockStripeStreams streams;
-
-  // set getEncoding
-  proto::ColumnEncoding directEncoding;
-  directEncoding.set_kind(proto::ColumnEncoding_Kind_DIRECT);
-  EXPECT_CALL(streams, getEncodingProxy(_))
-      .WillRepeatedly(Return(&directEncoding));
-
-  // set getStream
-  EXPECT_CALL(streams, getStreamProxy(_, proto::Stream_Kind_PRESENT, false))
-      .WillRepeatedly(Return(nullptr));
-
-  // [0..99]
-  std::array<char, 100> data;
-  std::iota(data.begin(), data.end(), 0);
-  EXPECT_CALL(streams, getStreamProxy(1, proto::Stream_Kind_DATA, true))
-      .WillRepeatedly(
-          Return(new SeekableArrayInputStream(data.data(), data.size())));
-
-  // create the row type
-  std::shared_ptr<const RowType> rowType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:int>"));
-  std::shared_ptr<const RowType> reqType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:bigint>"));
-
-  ColumnSelector cs(reqType, rowType);
-  EXPECT_CALL(streams, getColumnSelectorProxy()).WillRepeatedly(Return(&cs));
-  memory::AllocationPool allocPool(pool());
-  StreamLabels labels(allocPool);
-  std::unique_ptr<ColumnReader> reader = ColumnReader::build(
-      TypeWithId::create(reqType),
-      TypeWithId::create(rowType),
-      streams,
-      labels,
-      executor(),
-      getDecodingParallelismFactor());
-
-  VectorPtr batch;
-  reader->next(100, batch);
-
-  auto lv = std::dynamic_pointer_cast<FlatVector<int64_t>>(
-      std::dynamic_pointer_cast<RowVector>(batch)->childAt(0));
-  for (size_t i = 0; i < batch->size(); ++i) {
-    // bytes in the stream are zig-zag decoded on read
-    // so zigzag::decode i to match the value.
-    EXPECT_EQ(lv->valueAt(i), zigZagDecode(i));
-  }
-}
-
-TEST_P(TestReaderP, testUpcastIntDict) {
-  MockStripeStreams streams;
-
-  // set getEncoding
-  proto::ColumnEncoding directEncoding;
-  directEncoding.set_kind(proto::ColumnEncoding_Kind_DIRECT);
-  EXPECT_CALL(streams, getEncodingProxy(_))
-      .WillRepeatedly(Return(&directEncoding));
-
-  const size_t DICT_SIZE = 100;
-  proto::ColumnEncoding dictEncoding;
-  dictEncoding.set_kind(proto::ColumnEncoding_Kind_DICTIONARY);
-  dictEncoding.set_dictionarysize(DICT_SIZE);
-  EXPECT_CALL(streams, getEncodingProxy(1))
-      .WillRepeatedly(Return(&dictEncoding));
-
-  // set getStream
-  EXPECT_CALL(streams, getStreamProxy(_, proto::Stream_Kind_PRESENT, false))
-      .WillRepeatedly(Return(nullptr));
-
-  EXPECT_CALL(
-      streams, getStreamProxy(1, proto::Stream_Kind_IN_DICTIONARY, false))
-      .WillRepeatedly(Return(nullptr));
-
-  // [0..99] RLE encoded, is length = 100 (subtract -3 minimum repeat, 97 =
-  // 0x61), delta - 1, start - 0
-  auto data = folly::make_array<char>(0x61, 0x01, 0x00);
-  EXPECT_CALL(streams, getStreamProxy(1, proto::Stream_Kind_DATA, true))
-      .WillRepeatedly(
-          Return(new SeekableArrayInputStream(data.data(), data.size())));
-
-  EXPECT_CALL(streams, genMockDictDataSetter(1, 0))
-      .WillRepeatedly(Return([](BufferPtr& buffer, MemoryPool* pool) {
-        buffer = AlignedBuffer::allocate<int64_t>(1024, pool);
-        setSequence<int64_t>(buffer, 0, 100);
-      }));
-
-  // create the row type
-  std::shared_ptr<const RowType> rowType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:int>"));
-  std::shared_ptr<const RowType> reqType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:bigint>"));
-  ColumnSelector cs(reqType, rowType);
-  EXPECT_CALL(streams, getColumnSelectorProxy()).WillRepeatedly(Return(&cs));
-  memory::AllocationPool allocPool(pool());
-  StreamLabels labels(allocPool);
-  std::unique_ptr<ColumnReader> reader = ColumnReader::build(
-      TypeWithId::create(reqType),
-      TypeWithId::create(rowType),
-      streams,
-      labels,
-      executor(),
-      getDecodingParallelismFactor());
-
-  VectorPtr batch;
-  reader->next(100, batch);
-
-  auto lv = std::dynamic_pointer_cast<FlatVector<int64_t>>(
-      std::dynamic_pointer_cast<RowVector>(batch)->childAt(0));
-  for (size_t i = 0; i < batch->size(); ++i) {
-    EXPECT_EQ(lv->valueAt(i), i);
-  }
-}
-
-TEST_P(TestReaderP, testUpcastFloat) {
-  MockStripeStreams streams;
-
-  // set getEncoding
-  proto::ColumnEncoding directEncoding;
-  directEncoding.set_kind(proto::ColumnEncoding_Kind_DIRECT);
-  EXPECT_CALL(streams, getEncodingProxy(_))
-      .WillRepeatedly(Return(&directEncoding));
-
-  // set getStream
-  EXPECT_CALL(streams, getStreamProxy(_, proto::Stream_Kind_PRESENT, false))
-      .WillRepeatedly(Return(nullptr));
-
-  // [0..99]
-  std::array<char, 100 * 4> data;
-  size_t pos = 0;
-  for (size_t i = 0; i < 100; ++i) {
-    auto val = static_cast<float>(i);
-    auto intPtr = reinterpret_cast<int32_t*>(&val);
-    for (size_t j = 0; j < sizeof(int32_t); ++j) {
-      data.data()[pos++] = static_cast<char>((*intPtr >> (8 * j)) & 0xff);
-    }
-  }
-  EXPECT_CALL(streams, getStreamProxy(1, proto::Stream_Kind_DATA, true))
-      .WillRepeatedly(
-          Return(new SeekableArrayInputStream(data.data(), data.size())));
-
-  // create the row type
-  std::shared_ptr<const RowType> rowType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:float>"));
-  std::shared_ptr<const RowType> reqType =
-      std::dynamic_pointer_cast<const RowType>(
-          HiveTypeParser().parse("struct<col0:double>"));
-  ColumnSelector cs(reqType, rowType);
-  EXPECT_CALL(streams, getColumnSelectorProxy()).WillRepeatedly(Return(&cs));
-  memory::AllocationPool allocPool(pool());
-  StreamLabels labels(allocPool);
-  std::unique_ptr<ColumnReader> reader = ColumnReader::build(
-      TypeWithId::create(reqType),
-      TypeWithId::create(rowType),
-      streams,
-      labels,
-      executor(),
-      getDecodingParallelismFactor());
-
-  VectorPtr batch;
-  reader->next(100, batch);
-
-  auto lv = std::dynamic_pointer_cast<FlatVector<double>>(
-      std::dynamic_pointer_cast<RowVector>(batch)->childAt(0));
-  for (size_t i = 0; i < batch->size(); ++i) {
-    EXPECT_EQ(lv->valueAt(i), static_cast<double>(i));
-  }
-}
 
 VELOX_INSTANTIATE_TEST_SUITE_P(
     TestReaderSerialDecoding,

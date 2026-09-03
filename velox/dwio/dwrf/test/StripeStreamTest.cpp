@@ -824,11 +824,6 @@ class TestStripeStreams : public StripeStreamsBase {
         throwIfNotFound));
   }
 
-  const facebook::velox::dwio::common::ColumnSelector& getColumnSelector()
-      const override {
-    VELOX_UNSUPPORTED();
-  }
-
   const facebook::velox::tz::TimeZone* sessionTimezone() const override {
     VELOX_UNSUPPORTED();
   }

@@ -37,11 +37,9 @@ std::string getExampleFilePath(const std::string& fileName) {
 
 dwio::common::RowReaderOptions getReaderOpts(
     const RowTypePtr& rowType,
-    bool fileColumnNamesReadAsLowerCase = false) {
+    bool /*fileColumnNamesReadAsLowerCase*/) {
   dwio::common::RowReaderOptions rowReaderOpts;
-  rowReaderOpts.select(
-      std::make_shared<facebook::velox::dwio::common::ColumnSelector>(
-          rowType, rowType->names(), nullptr, fileColumnNamesReadAsLowerCase));
+  rowReaderOpts.setScanSpec(makeScanSpec(rowType));
   return rowReaderOpts;
 }
 

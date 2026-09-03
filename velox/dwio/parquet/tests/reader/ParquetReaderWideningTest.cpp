@@ -240,10 +240,8 @@ void FloatToDoubleEvolutionTest::runFloatToDoubleScenario(
       std::make_unique<ParquetReader>(std::move(buffer), readerOptions);
 
   RowReaderOptions rowReaderOpts;
-  rowReaderOpts.select(
-      std::make_shared<facebook::velox::dwio::common::ColumnSelector>(
-          readSchema, readSchema->names()));
   auto scanSpec = makeScanSpec(readSchema);
+  rowReaderOpts.setScanSpec(scanSpec);
 
   // Apply IsNull or IsNotNull filter if specified
   switch (spec.filter) {

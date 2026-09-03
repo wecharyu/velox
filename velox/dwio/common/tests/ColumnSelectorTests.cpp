@@ -457,60 +457,6 @@ TEST(ColumnSelectorTests, testPartitionKeysMark) {
         std::vector<std::string>{"2018-09-01", "gold"});
     EXPECT_EQ(root->childAt(2)->getNode().expression, "2018-09-01");
     EXPECT_EQ(root->childAt(3)->getNode().expression, "gold");
-
-    // test apply to real data file disk schema
-    const auto schemaMore =
-        std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
-            "struct<"
-            "id:bigint"
-            "memo:string"
-            "extra:array<float>>"));
-    const auto schemaLess =
-        std::dynamic_pointer_cast<const RowType>(HiveTypeParser().parse(
-            "struct<"
-            "id:bigint>"));
-
-    auto csMore = ColumnSelector::apply(cs, schemaMore);
-    LOG(INFO) << "CS filter size: " << cs->getProjection().size();
-    LOG(INFO) << "CS More filter size: " << csMore.getProjection().size();
-    root = csMore.getNode(0);
-
-    // columns in data file but not in logic schema, ignore them
-    EXPECT_EQ(root->size(), 4);
-    EXPECT_EQ(root->childAt(0)->getNode().name, "id");
-    EXPECT_TRUE(root->childAt(0)->shouldRead());
-    EXPECT_TRUE(root->childAt(0)->isInContent());
-    EXPECT_EQ(root->childAt(1)->getNode().name, "memo");
-    EXPECT_TRUE(root->childAt(1)->shouldRead());
-    EXPECT_TRUE(root->childAt(1)->isInContent());
-
-    LOG(INFO) << "DS node: " << root->childAt(2)->getNode().toString();
-    EXPECT_EQ(root->childAt(2)->getNode().name, "ds");
-    EXPECT_TRUE(root->childAt(2)->shouldRead());
-    EXPECT_FALSE(root->childAt(2)->isInContent());
-
-    LOG(INFO) << "Key node: " << root->childAt(3)->getNode().toString();
-    EXPECT_EQ(root->childAt(3)->getNode().name, "key");
-    EXPECT_TRUE(root->childAt(3)->shouldRead());
-    EXPECT_FALSE(root->childAt(3)->isInContent());
-
-    // columns not in data file, the will be filled with null
-    auto csLess = ColumnSelector::apply(cs, schemaLess);
-    LOG(INFO) << "CS Less filter size: " << csLess.getProjection().size();
-    root = csLess.getNode(0);
-    EXPECT_EQ(root->size(), 4);
-    EXPECT_EQ(root->childAt(0)->getNode().name, "id");
-    EXPECT_TRUE(root->childAt(0)->shouldRead());
-    EXPECT_TRUE(root->childAt(0)->isInContent());
-    EXPECT_EQ(root->childAt(1)->getNode().name, "memo");
-    EXPECT_TRUE(root->childAt(1)->shouldRead());
-    EXPECT_FALSE(root->childAt(1)->isInContent());
-    EXPECT_EQ(root->childAt(2)->getNode().name, "ds");
-    EXPECT_TRUE(root->childAt(2)->shouldRead());
-    EXPECT_FALSE(root->childAt(2)->isInContent());
-    EXPECT_EQ(root->childAt(3)->getNode().name, "key");
-    EXPECT_TRUE(root->childAt(3)->shouldRead());
-    EXPECT_FALSE(root->childAt(3)->isInContent());
   }
 }
 
